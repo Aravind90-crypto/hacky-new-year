@@ -1,0 +1,588 @@
+<!-- to make responsive -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<!-- include bootstrap css -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.0/css/bootstrap.min.css" />
+
+<!-- include jquery and bootstrap js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.0/js/bootstrap.min.js"></script>
+
+<!-- include sweetalert for displaying dialog messages -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert/2.1.2/sweetalert.min.js"></script>
+
+<script>
+
+    // main object
+    var taskObj = {
+
+        // local storage key
+        key: "resolutions",
+
+        // add resolutions
+        addresolutions: function () {
+
+            // check if resolutions is selected
+            if (document.getElementById("add-resolutions").value == "") {
+                swal("Please enter resolutions name");
+                return false;
+            }
+
+            // initialize local storage if not already initialized
+            var option = "";
+            if (localStorage.getItem(this.key) == null) {
+                localStorage.setItem(this.key, "[]");
+            }
+
+            // get stored object from local storage
+            var data = JSON.parse(localStorage.getItem(this.key));
+
+            // resolutions object
+            var resolutions = {
+                id: data.length,
+                name: document.getElementById("add-resolutions").value,
+                tasks: []
+            };
+
+            // push new resolutions in local storage
+            data.push(resolutions);
+            localStorage.setItem(this.key, JSON.stringify(data));
+
+            // re-load all resolutionss
+            this.loadAllresolutionss();
+
+            // show all tasks
+            this.showAllTasks();
+        },
+
+        // get all stored resolutionss
+        getAllresolutionss: function() {
+            if (localStorage.getItem(this.key) == null) {
+                localStorage.setItem(this.key, "[]");
+            }
+            return JSON.parse(localStorage.getItem(this.key))
+        },
+
+        // get single resolutions using ID
+        getresolutions: function(id) {
+            var resolutionss = this.getAllresolutionss();
+            for (var a = 0; a < resolutionss.length; a++) {
+                if (resolutionss[a].id == id) {
+                    return resolutionss[a];
+                }
+            }
+            return null;
+        },
+
+        // load all resolutionss in dropdown
+        loadAllresolutionss: function () {
+            var resolutionss = taskObj.getAllresolutionss();
+            resolutionss = resolutionss.reverse();
+            var html = "<option value=''>Select resolutions</option>";
+            for (var a = 0; a < resolutionss.length; a++) {
+                html += "<option value='" + resolutionss[a].id + "'>" + resolutionss[a].name + "</option>";
+            }
+            document.getElementById("add-task-resolutions").innerHTML = html;
+            document.getElementById("form-task-hour-calculator-all-resolutionss").innerHTML = html;
+        },
+
+        // add new task
+        addTask: function (form) {
+
+            // get selected resolutions and entered task
+            var resolutions = form.resolutions.value;
+            var task = form.task.value;
+
+            // add task in resolutions's array
+            var resolutionss = this.getAllresolutionss();
+            for (var a = 0; a < resolutionss.length; a++) {
+                if (resolutionss[a].id == resolutions) {
+                    var taskObj = {
+                        id: resolutionss[a].tasks.length,
+                        name: task,
+                        status: "Progress", // Progress, Completed
+                        isStarted: false,
+                        logs: [],
+                        started: this.getCurrentTimeInTaskStartEndFormat(),
+                        ended: ""
+                    }
+                    resolutionss[a].tasks.push(taskObj);
+                    break;
+                }
+            }
+
+            // update local storage
+            localStorage.setItem(this.key, JSON.stringify(resolutionss));
+
+            // hide modal
+            jQuery("#addTaskModal").modal("hide");
+            jQuery('.modal-backdrop').remove();
+
+            // re-load all tasks
+            this.showAllTasks();
+
+            // prevent form from submitting
+            return false;
+        },
+
+        // show all tasks in table
+        showAllTasks: function () {
+            var html = "";
+
+            // get all resolutionss
+            var resolutionss = this.getAllresolutionss();
+            for (var a = 0; a < resolutionss.length; a++) {
+                resolutionss[a].tasks = resolutionss[a].tasks.reverse();
+
+                // get tasks in each resolutions
+                for (var b = 0; b < resolutionss[a].tasks.length; b++) {
+                    html += "<tr>";
+                        html += "<td>" + resolutionss[a].tasks[b].name + "</td>";
+                        html += "<td>" + resolutionss[a].name + "</td>";
+                        if (resolutionss[a].tasks[b].isStarted) {
+                            html += "<td><label class='started'>Started</label></td>";
+                        } else {
+                            if (resolutionss[a].tasks[b].status == "Completed") {
+                                html += "<td><label class='completed'>" + resolutionss[a].tasks[b].status + "</label></td>";
+                            } else {
+                                html += "<td>" + resolutionss[a].tasks[b].status + "</td>";
+                            }
+                        }
+
+                        // get total duration of each task using it's logs
+                        var duration = 0;
+                        for (var c = 0; c < resolutionss[a].tasks[b].logs.length; c++) {
+                            var log = resolutionss[a].tasks[b].logs[c];
+                            if (log.endTime > 0) {
+                                duration += log.endTime - log.startTime;
+                            }
+                        }
+
+                        // convert millisecond into hours, minutes and seconds
+                        duration = Math.abs((duration / 1000).toFixed(0));
+                        var hours = Math.floor(duration / 3600) % 24;
+                        hours = (hours < 10) ? "0" + hours : hours;
+                        // var days = Math.floor(diff / 86400);
+                        var minutes = Math.floor(duration / 60) % 60;
+                        minutes = (minutes < 10) ? "0" + minutes : minutes;
+                        var seconds = duration % 60;
+                        seconds = (seconds < 10) ? "0" + seconds : seconds;
+
+                        // show timer if task is already started
+                        if (resolutionss[a].tasks[b].isStarted) {
+                            var dataStartedObj = {
+                                "duration": duration,
+                                "resolutions": resolutionss[a].id,
+                                "task": resolutionss[a].tasks[b].id
+                            };
+                            html += "<td data-started='" + JSON.stringify(dataStartedObj) + "'>" + hours + ":" + minutes + ":" + seconds + "</td>";
+                        } else {
+                            html += "<td>" + hours + ":" + minutes + ":" + seconds + "</td>";
+                        }
+
+                        // show task duration if completed
+                        if (resolutionss[a].tasks[b].status == "Completed") {
+                            html += "<td>" + resolutionss[a].tasks[b].started + "<br><span style='margin-left: 30px;'>to</span><br>" + resolutionss[a].tasks[b].ended + "</td>";
+                        } else {
+                            html += "<td>" + resolutionss[a].tasks[b].started + "</td>";
+                        }
+
+                        // form to change task status
+                        html += "<td>";
+                            html += "<form method='POST' id='form-change-task-status-" + resolutionss[a].id + resolutionss[a].tasks[b].id + "'>";
+                                html += "<input type='hidden' name='resolutions' value='" + resolutionss[a].id + "'>";
+                                html += "<input type='hidden' name='task' value='" + resolutionss[a].tasks[b].id + "'>";
+                                html += "<select class='form-control' name='status' onchange='taskObj.changeTaskStatus(this);' data-form-id='form-change-task-status-" + resolutionss[a].id + resolutionss[a].tasks[b].id + "'>";
+                                    html += "<option value=''>Change status</option>";
+                                    if (resolutionss[a].tasks[b].isStarted) {
+                                        html += "<option value='stop'>Stop</option>";
+                                    } else {
+                                        html += "<option value='start'>Start</option>";
+                                    }
+                                    if (resolutionss[a].tasks[b].status == "Progress") {
+                                        html += "<option value='complete'>Mark as Completed</option>";
+                                    } else {
+                                        html += "<option value='progress'>Make in Progress Again</option>";
+                                    }
+                                    html += "<option value='delete'>Delete</option>";
+                                html += "</select>";
+                            html += "</form>";
+                        html += "</td>";
+                    html += "</tr>";
+                }
+            }
+            document.getElementById("all-tasks").innerHTML = html;
+        },
+
+        // get current datetime in proper format (e.g. 2021-06-15 20:53:15)
+        getCurrentTimeInTaskStartEndFormat() {
+            let current_datetime = new Date();
+            var date = current_datetime.getDate();
+            date = (date < 10) ? "0" + date : date;
+            var month = (current_datetime.getMonth() + 1);
+            month = (month < 10) ? "0" + month : month;
+            var hours = current_datetime.getHours();
+            hours = (hours < 10) ? "0" + hours : hours;
+            var minutes = current_datetime.getMinutes();
+            minutes = (minutes < 10) ? "0" + minutes : minutes;
+            var seconds = current_datetime.getSeconds();
+            seconds = (seconds < 10) ? "0" + seconds : seconds;
+            let formatted_date = current_datetime.getFullYear() + "-" + month + "-" + date + " " + hours + ":" + minutes + ":" + seconds;
+            return formatted_date;
+        },
+
+        // change task status
+        changeTaskStatus: function (self) {
+
+            // if task is not selected
+            if (self.value == "") {
+                return;
+            }
+
+            // loop through all resolutionss
+            var formId = self.getAttribute("data-form-id");
+            var form = document.getElementById(formId);
+            var resolutionss = this.getAllresolutionss();
+            for (var a = 0; a < resolutionss.length; a++) {
+
+                // if resolutions matches
+                if (resolutionss[a].id == form.resolutions.value) {
+
+                    // loop through all tasks of that resolutions
+                    for (var b = 0; b < resolutionss[a].tasks.length; b++) {
+
+                        // if task matches
+                        if (resolutionss[a].tasks[b].id == form.task.value) {
+
+                            // if the status is set to delete
+                            if (self.value == "delete") {
+
+                                // ask for confirmation
+                                swal({
+                                    title: "Are you sure?",
+                                    text: "Deleting the task will delete its hours too.",
+                                    icon: "warning",
+                                    buttons: true,
+                                    dangerMode: true,
+                                })
+                                .then((willDelete) => {
+                                    if (willDelete) {
+
+                                        // remove task from array
+                                        resolutionss[a].tasks.splice(b, 1);
+
+                                        // update local storage
+                                        localStorage.setItem(this.key, JSON.stringify(resolutionss));
+
+                                        // re-load all tasks
+                                        this.showAllTasks();
+                                    } else {
+
+                                        // reset dropdown
+                                        self.value = "";
+                                    }
+                                });
+                            } else if (self.value == "complete") {
+                                // mark as completed
+                                resolutionss[a].tasks[b].status = "Completed";
+
+                                // stop the timer
+                                resolutionss[a].tasks[b].isStarted = false;
+
+                                // log end time
+                                resolutionss[a].tasks[b].ended = this.getCurrentTimeInTaskStartEndFormat();
+                                for (var c = 0; c < resolutionss[a].tasks[b].logs.length; c++) {
+                                    if (resolutionss[a].tasks[b].logs[c].endTime == 0) {
+                                        resolutionss[a].tasks[b].logs[c].endTime = new Date().getTime();
+                                        break;
+                                    }
+                                }
+                            } else if (self.value == "progress") {
+                                // mark as in progress
+                                resolutionss[a].tasks[b].status = "Progress";
+
+                                // stop the timer
+                                resolutionss[a].tasks[b].isStarted = false;
+                            } else if (self.value == "start") {
+                                // ask for confirmation
+                                swal({
+                                    title: "Are you sure?",
+                                    text: "This will start the timer.",
+                                    icon: "warning",
+                                    buttons: true,
+                                    dangerMode: true,
+                                })
+                                .then((doStart) => {
+                                    if (doStart) {
+                                        
+                                        // mark as started
+                                        resolutionss[a].tasks[b].isStarted = true;
+
+                                        // add in log
+                                        var logObj = {
+                                            id: resolutionss[a].tasks[b].logs.length,
+                                            startTime: new Date().getTime(),
+                                            endTime: 0
+                                        };
+                                        resolutionss[a].tasks[b].logs.push(logObj);
+
+                                        // update local storage
+                                        localStorage.setItem(this.key, JSON.stringify(resolutionss));
+
+                                        // re-load all tasks
+                                        this.showAllTasks();
+                                    } else {
+
+                                        // reset dropdown
+                                        self.value = "";
+                                    }
+                                });
+                            } else if (self.value == "stop") {
+
+                                // ask for confirmation
+                                swal({
+                                    title: "Are you sure?",
+                                    text: "This will stop the timer.",
+                                    icon: "warning",
+                                    buttons: true,
+                                    dangerMode: true,
+                                })
+                                .then((doStop) => {
+                                    if (doStop) {
+
+                                        // mark as stopped
+                                        resolutionss[a].tasks[b].isStarted = false;
+
+                                        // update end time in log
+                                        for (var c = 0; c < resolutionss[a].tasks[b].logs.length; c++) {
+                                            if (resolutionss[a].tasks[b].logs[c].endTime == 0) {
+                                                resolutionss[a].tasks[b].logs[c].endTime = new Date().getTime();
+                                                break;
+                                            }
+                                        }
+
+                                        // update local storage
+                                        localStorage.setItem(this.key, JSON.stringify(resolutionss));
+
+                                        // re-load tasks
+                                        this.showAllTasks();
+                                    } else {
+
+                                        // reset dropdown
+                                        self.value = "";
+                                    }
+                                });
+                            }
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            // delete, start and stop are already handled above
+            if (self.value == "delete"
+                || self.value == "start"
+                || self.value == "stop") {
+                //
+            } else {
+                // update local storage and re-load tasks
+                localStorage.setItem(this.key, JSON.stringify(resolutionss));
+                this.showAllTasks();
+            }
+        },
+
+        // delete resolutions
+        deleteresolutions: function (self) {
+
+            // check if any resolutions is selected
+            if (self.resolutions.value == "") {
+                swal("Please select a resolutions to delete");
+                return false;
+            }
+
+            // ask for confirmation
+            swal({
+                title: "Are you sure?",
+                text: "Deleting the resolutions will delete its tasks too.",
+                icon: "warning",
+                buttons: true,
+                dangerMode: true,
+            })
+            .then((willDelete) => {
+                if (willDelete) {
+
+                    // remove from array and update local storage
+                    var resolutionss = this.getAllresolutionss();
+                    for (var a = 0; a < resolutionss.length; a++) {
+                        if (resolutionss[a].id == self.resolutions.value) {
+                            resolutionss.splice(a, 1);
+                            localStorage.setItem(this.key, JSON.stringify(resolutionss));
+
+                            // re-load data
+                            this.loadAllresolutionss();
+                            this.showAllTasks();
+
+                            break;
+                        }
+                    }
+                } else {
+
+                    // reset resolutions dropdown
+                    self.resolutions.value = "";
+                }
+            });
+            return false;
+        }
+    };
+
+    // when page loads
+    window.addEventListener("load", function () {
+
+        // show all resolutionss and tasks
+        taskObj.loadAllresolutionss();
+        taskObj.showAllTasks();
+
+        // call this function each second
+        setInterval(function () {
+
+            // increment 1 second in all running tasks
+            var dataStarted = document.querySelectorAll("td[data-started]");
+            for (var i = 0; i < dataStarted.length; i++) {
+                var dataStartedObj = dataStarted[i].getAttribute("data-started");
+                var dataStartedObj = JSON.parse(dataStartedObj);
+                dataStartedObj.duration++;
+
+                // convert timestamp into readable format
+                var hours = Math.floor(dataStartedObj.duration / 3600) % 24;
+                hours = (hours < 10) ? "0" + hours : hours;
+                // var days = Math.floor(diff / 86400);
+                var minutes = Math.floor(dataStartedObj.duration / 60) % 60;
+                minutes = (minutes < 10) ? "0" + minutes : minutes;
+                var seconds = dataStartedObj.duration % 60;
+                seconds = (seconds < 10) ? "0" + seconds : seconds;
+                dataStarted[i].innerHTML = hours + ":" + minutes + ":" + seconds;
+
+                // update log end time
+                var resolutionss = taskObj.getAllresolutionss();
+                for (var a = 0; a < resolutionss.length; a++) {
+                    if (resolutionss[a].id == dataStartedObj.resolutions) {
+                        for (var b = 0; b < resolutionss[a].tasks.length; b++) {
+                            if (resolutionss[a].tasks[b].id == dataStartedObj.task) {
+                                for (var c = 0; c < resolutionss[a].tasks[b].logs.length; c++) {
+                                    if (c == resolutionss[a].tasks[b].logs.length - 1) {
+                                        resolutionss[a].tasks[b].logs[c].endTime = new Date().getTime();
+
+                                        // update local storage
+                                        window.localStorage.setItem(taskObj.key, JSON.stringify(resolutionss));
+
+                                        // update timer
+                                        dataStarted[i].setAttribute("data-started", JSON.stringify(dataStartedObj));
+
+                                        break;
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }, 1000);
+    });
+</script>
+
+<div class="container" style="margin-top: 50px; margin-bottom: 50px;">
+    
+    <!-- button to add task -->
+    <div class="row" style="margin-bottom: 50px;">
+        <div class="col-md-12">
+            <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#addTaskModal">Add Task</button>
+            
+            <!-- form to delete resolutions -->
+            <form method="POST" onsubmit="return taskObj.deleteresolutions(this);" style="display: contents;">
+                <select name="resolutions" class="form-control" style="display: initial; width: 200px; margin-left: 5px; margin-right: 5px;" id="form-task-hour-calculator-all-resolutionss"></select>
+                <input type="submit" class="btn btn-danger" value="Delete resolutions">
+            </form>
+        </div>
+    </div>
+
+    <!-- show all tasks -->
+    <table class="table">
+        <caption class="text-center">All Tasks</caption>
+        <tr>
+            <th>Task</th>
+            <th>resolutions</th>
+            <th>Status</th>
+            <th>Duration</th>
+            <th>Date</th>
+            <th>Action</th>
+        </tr>
+
+        <tbody id="all-tasks"></tbody>
+    </table>
+</div>
+
+<!-- modal to add resolutions and task -->
+<div class="modal fade" id="addTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Task</h5>
+                <button class="close" type="button" data-dismiss="modal">x</button>
+            </div>
+
+            <div class="modal-body">
+                <form method="POST" onsubmit="return taskObj.addTask(this);" id="form-task-hour-calculator">
+                    
+                    <!-- select resolutions from already created -->
+                    <div class="form-group">
+                        <label>resolutions</label>
+                        <select name="resolutions" id="add-task-resolutions" class="form-control" required></select>
+                    </div>
+
+                    <!-- create new resolutions -->
+                    <div class="form-group">
+                        <label>New resolutions</label>
+                        <input type="text" name="new_resolutions" id="add-resolutions" class="form-control" placeholder="resolutions Name">
+
+                        <button type="button" onclick="taskObj.addresolutions();" class="btn btn-primary" style="margin-top: 10px;">Add resolutions</button>
+                    </div>
+
+                    <!-- enter task -->
+                    <div class="form-group">
+                        <label>Task</label>
+                        <input type="text" name="task" class="form-control" placeholder="What are you going to do ?" required />
+                    </div>
+                </form>
+            </div>
+
+            <!-- form submit button -->
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                <button type="submit" form="form-task-hour-calculator" class="btn btn-primary">Add Task</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* style when resolutions is started */
+    .started {
+        color: white;
+        font-weight: bold;
+        background: green;
+        padding: 5px;
+        border-radius: 5px;
+    }
+
+    /* style when resolutions is completed */
+    .completed {
+        color: white;
+        font-weight: bold;
+        background: greenyellow;
+        padding: 5px;
+        border-radius: 5px;
+    }
+</style>
